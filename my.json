@@ -1,0 +1,85 @@
+{
+  "StartAt": "LoadDefaults",
+  "States": {
+    "LoadDefaults": {
+      "Type": "Pass",
+      "ResultPath": "$.inputDefaults",
+      "Parameters": {
+        "EntryPoint": `s3://aws-cms-amg-qpp-costscoring-artifacts/qpp-claims-idrc-extractor/{$.commitId}/obfuscator.jar`,
+        "entryPointArgumentNames": [
+          "--input-path",
+          "--output-path",
+          "--substitution-map-path",
+          "--mode",
+          "--tables"
+        ],
+        "SparkSubmitParameters": ""
+      },
+      "Next": "ApplyDefaults"
+    },
+    "ApplyDefaults": {
+      "Type": "Pass",
+      "ResultPath": "$.withDefaults",
+      "Parameters": {
+        "args.$": "States.JsonMerge($.inputDefaults, $$.Execution.Input, false)"
+      },
+      "OutputPath": "$.withDefaults.args",
+      "Next": "RunSparkJob"
+    },
+    "RunSparkJob": {
+      "Next": "Job Complete ?",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Fail"
+        }
+      ],
+      "Type": "Task",
+      "ResultPath": "$.JobStatus",
+      "Resource": "arn:aws:states:::aws-sdk:emrserverless:startJobRun.waitForTaskToken",
+      "Parameters": {
+        "ApplicationId": "00fcr7dcfushvd09",
+        "ClientToken.$": "States.UUID()",
+        "Name": "obfuscatorPipelineSparkJob",
+        "ExecutionRoleArn": "arn:aws:iam::112637689005:role/delegatedadmin/developer/claims-emr-serverless-job-role",
+        "JobDriver": {
+          "SparkSubmit": {
+            "EntryPoint.$": "$.EntryPoint",
+            "EntryPointArguments.$": "States.Array($$.Task.Token,'--input-path',$['--input-path'],'--output-path',$['--output-path'],'--substitution-map-path',$['--substitution-map-path'],'--mode',$['--mode'],'--tables',$['--tables'])",
+            "SparkSubmitParameters.$": "$.SparkSubmitParameters"
+          }
+        },
+        "ConfigurationOverrides": {
+          "MonitoringConfiguration": {
+            "S3MonitoringConfiguration": {
+              "LogUri": "s3://claims-emr-serverless-logs-112637689005-us-east-1/obfuscator_pipeline/obfuscatorPipelineSparkJob"
+            },
+            "ManagedPersistenceMonitoringConfiguration": {
+              "Enabled": true
+            }
+          }
+        }
+      }
+    },
+    "Job Complete ?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.status",
+          "StringEquals": "SUCCEEDED",
+          "Next": "Success"
+        }
+      ],
+      "Default": "Fail"
+    },
+    "Fail": {
+      "Type": "Fail",
+      "Error": "The job obfuscatorPipelineSparkJob failed."
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}

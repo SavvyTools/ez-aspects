@@ -25,7 +25,15 @@ public class TaskToken {
     /**
      * Will send task success notificaiton to the stepfunction.
      * @param token - the token passed to the service by step function.
+     *
+     *  {
+     *      "Status" : "Success"
+     *
+     *  }
      */
+    public static void success(String token) {
+        success(token, new HashMap<String, String>());
+    }
     public static void success(String token, Map<String, String> params) {
         SendTaskSuccessRequest req = SendTaskSuccessRequest
                 .builder()
@@ -65,5 +73,20 @@ public class TaskToken {
         }catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Return true if the first argument of the given array is a callback token from step function
+     * @param args
+     * @return true if there is a callback token present
+     */
+    public static boolean containsCallbackToken(String args[]) {
+        if (args == null) return false;
+        if (args.length < 1) return false;
+        if (args[0] == null) return false;
+        if (args[0].length() < 100) return false;
+        if (args[0].indexOf(' ') >=0 ) return false;
+
+        return true;
     }
 }
